@@ -1,0 +1,34 @@
+# Environment & secrets
+.env
+*.env.local
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases & uploads
+data/ai_student_copilot.db*
+data/uploads/*
+data/vector_store/*
+!data/uploads/.gitkeep
+!data/vector_store/.gitkeep
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
