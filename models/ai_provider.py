@@ -7,6 +7,7 @@ from __future__ import annotations
 import abc
 import os
 import re
+import time
 from typing import Optional, Tuple, Dict, Any, List
 
 from backend.config import settings
@@ -104,27 +105,43 @@ class GeminiProvider(BaseAIProvider):
         from google import genai
         from google.genai import types
 
-        try:
-            client = genai.Client(api_key=self.api_key)
-            config_args: Dict[str, Any] = {
-                "temperature": temperature,
-                "max_output_tokens": max_tokens,
-            }
-            if system_instruction:
-                config_args["system_instruction"] = system_instruction
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                client = genai.Client(api_key=self.api_key)
+                config_args: Dict[str, Any] = {
+                    "temperature": temperature,
+                    "max_output_tokens": max_tokens,
+                }
+                if system_instruction:
+                    config_args["system_instruction"] = system_instruction
 
-            response = client.models.generate_content(
-                model=self.model,
-                contents=prompt,
-                config=types.GenerateContentConfig(**config_args)
-            )
-            return response.text or ""
-        except Exception as exc:
-            raw_err = str(exc)
-            sanitized = re.sub(r'AIza[0-9A-Za-z-_]{35}', '[REDACTED]', raw_err)
-            sanitized = re.sub(r'key=[^&\s]+', 'key=[REDACTED]', sanitized)
-            logger.error(f"Gemini text generation failed: {sanitized}")
-            raise RuntimeError(f"Gemini API error: {sanitized}") from None
+                response = client.models.generate_content(
+                    model=self.model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(**config_args)
+                )
+                return response.text or ""
+            except Exception as exc:
+                raw_err = str(exc)
+                err_lower = raw_err.lower()
+                is_transient = any(
+                    indicator in err_lower
+                    for indicator in ["503", "unavailable", "overloaded", "temporarily unavailable"]
+                )
+                if is_transient and attempt < max_attempts:
+                    sleep_sec = 2 if attempt == 1 else 4
+                    logger.warning(
+                        f"Gemini API temporarily unavailable (attempt {attempt}/{max_attempts}): {raw_err}. "
+                        f"Retrying in {sleep_sec}s..."
+                    )
+                    time.sleep(sleep_sec)
+                    continue
+
+                sanitized = re.sub(r'AIza[0-9A-Za-z-_]{35}', '[REDACTED]', raw_err)
+                sanitized = re.sub(r'key=[^&\s]+', 'key=[REDACTED]', sanitized)
+                logger.error(f"Gemini text generation failed: {sanitized}")
+                raise RuntimeError(f"Gemini API error: {sanitized}") from None
 
 
 class OpenAIProvider(BaseAIProvider):
