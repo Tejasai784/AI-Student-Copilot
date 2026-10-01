@@ -122,10 +122,12 @@ class LocalVectorStore:
         query_embedding: List[float],
         top_k: int = 5,
         filter_subject_id: Optional[int] = None,
-        filter_unit: Optional[int] = None
+        filter_unit: Optional[int] = None,
+        filter_user_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
-        Performs cosine similarity search against indexed chunks with optional subject/unit filtering.
+        Performs cosine similarity search against indexed chunks with optional subject,
+        unit, and user_id filtering.
         """
         with self._lock:
             if self.vectors is None or len(self.vectors) == 0 or len(self.metadata) == 0:
@@ -136,13 +138,19 @@ class LocalVectorStore:
             if q_norm > 0:
                 q_vec = q_vec / q_norm
 
-            # Filter indices based on subject_id and unit_number
+            # Filter indices based on subject_id, unit_number, and user_id
             valid_indices = []
             for idx, meta in enumerate(self.metadata):
                 if filter_subject_id is not None and meta.get("subject_id") != filter_subject_id:
                     continue
                 if filter_unit is not None and meta.get("unit_number") != filter_unit:
                     continue
+                if filter_user_id is not None:
+                    chunk_user = meta.get("user_id")
+                    if chunk_user is not None and chunk_user != filter_user_id:
+                        continue
+                    elif chunk_user is None and filter_user_id != 1:
+                        continue
                 valid_indices.append(idx)
 
             if not valid_indices:

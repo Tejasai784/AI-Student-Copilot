@@ -63,7 +63,8 @@ def ask_ai_tutor(
     tutor_resp: TutorResponse = ask_tutor(
         query=req.question,
         subject_id=req.subject_id,
-        answer_mode=req.style
+        answer_mode=req.style,
+        user_id=user_id
     )
 
     citations = [
@@ -142,7 +143,8 @@ async def stream_chat(
         tutor_resp: TutorResponse = ask_tutor(
             query=question,
             subject_id=subject_id,
-            answer_mode=style
+            answer_mode=style,
+            user_id=user_id
         )
 
         # Check disconnect

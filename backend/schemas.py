@@ -144,6 +144,39 @@ class DocumentChunkResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class DocumentStatusResponse(BaseModel):
+    document_id: int
+    status: str
+    error_message: Optional[str] = None
+    total_pages: int = 0
+    total_chunks: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ValidatedCitationResponse(BaseModel):
+    source_id: str
+    vector_id: str
+    document_id: Optional[int] = None
+    page_number: Any = 1
+    chunk_index: int = 0
+    topic_name: str = "General"
+    score: float = 0.0
+    user_id: Optional[int] = None
+    char_count: int = 0
+    excerpt: str = ""
+    is_valid: bool = True
+    is_cited: bool = True
+
+
+class DocumentSearchResponse(BaseModel):
+    query: str
+    total_results: int
+    chunks: List[Dict[str, Any]]
+    citations: List[ValidatedCitationResponse]
+    user_id: Optional[int] = None
+
+
 # ============================================================================
 # Chat & Tutor Schemas
 # ============================================================================

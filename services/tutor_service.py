@@ -210,6 +210,7 @@ def get_tutor_response(
     answer_mode: str = DEFAULT_ANSWER_MODE,
     top_k: int = settings.RAG_TOP_K,
     db_docs: Optional[Dict[int, Any]] = None,
+    user_id: Optional[int] = None,
 ) -> TutorResponse:
     """
     Main entry point: retrieves relevant chunks then calls the LLM to generate an answer.
@@ -221,6 +222,7 @@ def get_tutor_response(
         answer_mode: One of the ANSWER_MODES keys.
         top_k: Number of chunks to retrieve.
         db_docs: Optional {document_id: Document} map for filename resolution in citations.
+        user_id: Optional user scoping filter.
 
     Returns:
         TutorResponse with answer, source_mode, and source citations.
@@ -237,12 +239,13 @@ def get_tutor_response(
     # Reload environment to catch any recent changes to .env or environment variables
     settings.reload()
 
-    # 1. Retrieve relevant chunks
+    # 1. Retrieve relevant chunks (user-scoped)
     retrieval: RetrievalResult = retrieve_chunks(
         query=query,
         top_k=top_k,
         subject_id=subject_id,
         unit_number=unit_number,
+        user_id=user_id,
     )
 
     has_material = len(retrieval.chunks) > 0

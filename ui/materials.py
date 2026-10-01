@@ -108,7 +108,10 @@ def render_materials_page():
             for doc in docs:
                 status_color = {
                     "COMPLETED": "#10B981",
+                    "READY": "#10B981",
+                    "INDEXING": "#8B5CF6",
                     "PROCESSING": "#3B82F6",
+                    "UPLOADING": "#F59E0B",
                     "FAILED": "#EF4444",
                     "PENDING": "#F59E0B"
                 }.get(doc.status, "#64748B")
@@ -123,7 +126,7 @@ def render_materials_page():
                         st.markdown(f"**Subject:** {doc.subject.name if doc.subject else 'N/A'} ({doc.subject.code if doc.subject else 'N/A'})")
                         st.markdown(f"**Unit:** {unit_str} | **Type:** {doc.document_type}")
                         st.markdown(f"**Size:** {format_file_size(doc.file_size)} | **Uploaded:** {format_datetime(doc.created_at)}")
-                        if doc.status == "COMPLETED":
+                        if doc.status in ("COMPLETED", "READY"):
                             st.markdown(f"**Pages Extracted:** {doc.total_pages} | **Vector Chunks:** {doc.total_chunks}")
                         elif doc.status == "FAILED":
                             st.error(f"Error details: {doc.error_message}")
@@ -143,7 +146,7 @@ def render_materials_page():
                             st.rerun()
 
                     # Chunk Inspector
-                    if doc.status == "COMPLETED" and doc.total_chunks > 0:
+                    if doc.status in ("COMPLETED", "READY") and doc.total_chunks > 0:
                         st.markdown("---")
                         st.markdown("###### 🔍 Extracted Chunks Preview")
                         with get_db() as db:

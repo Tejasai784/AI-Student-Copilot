@@ -303,7 +303,7 @@ def get_dashboard_summary(db: Session) -> Dict[str, Any]:
     )
 
     total_materials = db.query(func.count(Document.id)).filter(
-        Document.status == "COMPLETED"
+        Document.status.in_(["COMPLETED", "READY", "Ready", "Completed"])
     ).scalar() or 0
 
     from database.models import ExamAttempt, UpcomingExam, StudyTask
