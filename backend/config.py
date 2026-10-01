@@ -15,29 +15,17 @@ VECTOR_STORE_PATH.mkdir(parents=True, exist_ok=True)
 
 from dotenv import load_dotenv, dotenv_values
 
+# Initial environment load from .env file
+for ep in [BASE_DIR / ".env", Path.cwd() / ".env"]:
+    if ep.exists() and ep.is_file():
+        load_dotenv(ep)
+        break
+
+
 def reload_env() -> None:
     """
-    Reloads environment variables from .env files and synchronizes key aliases.
-    Checks BASE_DIR/.env as well as current working directory .env.
-    Preserves active environment variables while loading non-empty values from .env.
+    Refreshes configuration and synchronizes key aliases from the current environment.
     """
-    candidate_paths = [
-        BASE_DIR / ".env",
-        Path.cwd() / ".env",
-    ]
-    for ep in candidate_paths:
-        if ep.exists() and ep.is_file():
-            try:
-                env_vals = dotenv_values(ep)
-                for k, v in env_vals.items():
-                    val = (v or "").strip().strip("'\"")
-                    if val and k not in os.environ:
-                        os.environ[k] = val
-            except Exception:
-                pass
-            break
-
-    # Synchronize GEMINI_API_KEY, GOOGLE_API_KEY, and AI_API_KEY aliases
     gemini_key = (os.getenv("GEMINI_API_KEY") or "").strip().strip("'\"")
     google_key = (os.getenv("GOOGLE_API_KEY") or "").strip().strip("'\"")
     ai_key = (os.getenv("AI_API_KEY") or "").strip().strip("'\"")
@@ -46,6 +34,9 @@ def reload_env() -> None:
     if active_key:
         os.environ["GEMINI_API_KEY"] = active_key
         os.environ["GOOGLE_API_KEY"] = active_key
+    else:
+        os.environ.pop("GEMINI_API_KEY", None)
+        os.environ.pop("GOOGLE_API_KEY", None)
 
 
 def update_env_file(key_values: dict[str, str]) -> None:
