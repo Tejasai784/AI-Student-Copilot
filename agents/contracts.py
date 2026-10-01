@@ -43,6 +43,7 @@ class CriticEvaluationResult:
     relevance: float            # 0.0 - 1.0
     overall_score: float        # 0.0 - 1.0
     feedback: str
+    groundedness: float = 1.0   # 0.0 - 1.0
     retry_required: bool = False
     revision_notes: Optional[str] = None
 
@@ -53,6 +54,9 @@ class ExecutionTraceStep:
     stage: str                  # Goal | Plan | Agent | Tool | Result | Critic | Revision | Final
     agent_name: str
     action_description: str
+    tool_used: Optional[str] = None
+    duration_ms: float = 0.0
+    parent_step_id: Optional[int] = None
     details: Dict[str, Any] = field(default_factory=dict)
     timestamp: str = ""
 

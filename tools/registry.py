@@ -14,11 +14,29 @@ from backend.logging_config import logger
 from database.crud import log_tool_call
 
 
+from pydantic import BaseModel, ValidationError
+from tools.schemas import BaseToolArgs, BaseToolOutput
+
+
 class BaseTool(abc.ABC):
     """Abstract interface for all agent-callable tools."""
     name: str
     description: str
-    parameters_schema: Dict[str, Any]
+    parameters_schema: Dict[str, Any] = {}
+    args_model: Optional[type[BaseModel]] = None
+    output_model: Optional[type[BaseModel]] = None
+
+    def get_args_schema(self) -> Dict[str, Any]:
+        """Returns JSON schema for input parameters."""
+        if self.args_model:
+            return self.args_model.model_json_schema()
+        return getattr(self, "parameters_schema", {})
+
+    def get_output_schema(self) -> Optional[Dict[str, Any]]:
+        """Returns JSON schema for output results if defined."""
+        if self.output_model:
+            return self.output_model.model_json_schema()
+        return None
 
     @abc.abstractmethod
     def execute(self, **kwargs) -> Dict[str, Any]:
@@ -44,7 +62,8 @@ class ToolRegistry:
             {
                 "name": t.name,
                 "description": t.description,
-                "parameters": t.parameters_schema
+                "parameters": t.get_args_schema(),
+                "output_schema": t.get_output_schema()
             }
             for t in self._tools.values()
         ]
@@ -57,8 +76,8 @@ class ToolRegistry:
         agent_run_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Executes a registered tool with input validation, timeout protection,
-        and database audit logging.
+        Executes a registered tool with Pydantic input validation,
+        timeout protection, and database audit logging.
         """
         tool = self._tools.get(name)
         if not tool:
@@ -74,6 +93,25 @@ class ToolRegistry:
                     agent_run_id=agent_run_id
                 )
             return {"ok": False, "error": err}
+
+        # Pydantic input validation
+        if tool.args_model:
+            try:
+                validated_args = tool.args_model(**arguments)
+                arguments = validated_args.model_dump()
+            except ValidationError as val_err:
+                err_msg = f"Invalid input parameters for tool '{name}': {str(val_err)}"
+                if db:
+                    log_tool_call(
+                        db=db,
+                        tool_name=name,
+                        tool_input_json=json.dumps(arguments, default=str),
+                        tool_output_json=json.dumps({"error": err_msg}),
+                        status="FAILED",
+                        execution_time_ms=0.0,
+                        agent_run_id=agent_run_id
+                    )
+                return {"ok": False, "error": err_msg}
 
         start_time = time.perf_counter()
         status = "SUCCESS"

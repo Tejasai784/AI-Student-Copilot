@@ -11,9 +11,13 @@ from tools.registry import BaseTool
 from backend.config import settings
 
 
+from tools.schemas import TabularReaderInput
+
+
 class TabularReaderTool(BaseTool):
     name = "tabular_reader"
     description = "Inspects and analyzes CSV and Excel datasets, reporting columns, sample rows, and summary statistics."
+    args_model = TabularReaderInput
     parameters_schema = {
         "type": "object",
         "properties": {

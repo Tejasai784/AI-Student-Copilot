@@ -10,9 +10,13 @@ from database.database import get_db
 from database.crud import get_document_by_id, get_document_chunks, get_documents
 
 
+from tools.schemas import DocumentReaderInput
+
+
 class DocumentReaderTool(BaseTool):
     name = "document_reader"
     description = "Reads text and page segments from uploaded academic documents (PDF, DOCX, TXT, CSV)."
+    args_model = DocumentReaderInput
     parameters_schema = {
         "type": "object",
         "properties": {

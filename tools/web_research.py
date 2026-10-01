@@ -19,9 +19,13 @@ PERMITTED_DOMAINS = [
 ]
 
 
+from tools.schemas import WebResearchInput
+
+
 class WebResearchTool(BaseTool):
     name = "web_research"
     description = "Searches permitted academic references and documentation sources, returning verified facts with URL citations."
+    args_model = WebResearchInput
     parameters_schema = {
         "type": "object",
         "properties": {

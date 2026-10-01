@@ -12,21 +12,32 @@ from typing import Dict, Any, List
 from tools.registry import BaseTool
 
 
+import tempfile
+from tools.schemas import PythonSandboxInput
+
 FORBIDDEN_MODULES = {
-    "os", "sys", "subprocess", "socket", "requests", "urllib",
-    "shutil", "pathlib", "ctypes", "builtins", "__builtin__",
-    "posix", "nt", "_thread", "threading", "multiprocessing",
-    "signal", "pty", "commands", "pickle", "shelve", "webbrowser"
+    "os", "sys", "subprocess", "socket", "requests", "urllib", "urllib3",
+    "http", "shutil", "pathlib", "ctypes", "builtins", "__builtin__",
+    "posix", "nt", "_thread", "threading", "multiprocessing", "asyncio",
+    "signal", "pty", "commands", "pickle", "shelve", "webbrowser",
+    "importlib", "inspect", "linecache", "gc", "code", "codeop"
 }
 
 FORBIDDEN_CALLS = {
     "open", "exec", "eval", "compile", "getattr", "setattr",
-    "delattr", "__import__", "globals", "locals", "exit", "quit"
+    "delattr", "__import__", "globals", "locals", "exit", "quit",
+    "input", "breakpoint", "help", "memoryview"
+}
+
+FORBIDDEN_ATTRIBUTES = {
+    "__subclasses__", "__bases__", "__class__", "__globals__",
+    "__code__", "__closure__", "__dict__", "__builtins__",
+    "__import__", "__loader__", "__spec__", "__package__"
 }
 
 
 def _validate_ast_safety(tree: ast.AST) -> List[str]:
-    """Inspects AST nodes and flags forbidden imports and dangerous function calls."""
+    """Inspects AST nodes and flags forbidden imports, dangerous calls, and introspection escapes."""
     violations = []
     for node in ast.walk(tree):
         # Check imports
@@ -46,8 +57,11 @@ def _validate_ast_safety(tree: ast.AST) -> List[str]:
                 if node.func.id in FORBIDDEN_CALLS:
                     violations.append(f"Forbidden function call: '{node.func.id}()'")
             elif isinstance(node.func, ast.Attribute):
-                if node.func.attr in ("__subclasses__", "__bases__", "__class__"):
+                if node.func.attr in FORBIDDEN_ATTRIBUTES:
                     violations.append(f"Forbidden introspective attribute access: '{node.func.attr}'")
+        elif isinstance(node, ast.Attribute):
+            if node.attr in FORBIDDEN_ATTRIBUTES:
+                violations.append(f"Forbidden introspective attribute access: '{node.attr}'")
 
     return violations
 
@@ -55,6 +69,7 @@ def _validate_ast_safety(tree: ast.AST) -> List[str]:
 class PythonSandboxTool(BaseTool):
     name = "python_sandbox"
     description = "Safely executes educational Python code snippets in an isolated environment with strict timeout (3s) and captures output."
+    args_model = PythonSandboxInput
     parameters_schema = {
         "type": "object",
         "properties": {

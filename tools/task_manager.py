@@ -9,9 +9,13 @@ from database.database import get_db
 from database.crud import get_goals, get_goal_by_id, create_task, update_task_status, toggle_task_completion
 
 
+from tools.schemas import TaskManagerInput
+
+
 class TaskManagerTool(BaseTool):
     name = "task_state_manager"
     description = "Queries, creates, or updates academic goals and decomposed subtasks."
+    args_model = TaskManagerInput
     parameters_schema = {
         "type": "object",
         "properties": {

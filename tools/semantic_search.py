@@ -9,9 +9,13 @@ from rag.vector_store import get_vector_store
 from rag.embeddings import get_embedding_generator
 
 
+from tools.schemas import SemanticSearchInput
+
+
 class SemanticSearchTool(BaseTool):
     name = "semantic_search"
     description = "Searches student's uploaded textbooks, notes, and syllabus using vector semantic retrieval."
+    args_model = SemanticSearchInput
     parameters_schema = {
         "type": "object",
         "properties": {
