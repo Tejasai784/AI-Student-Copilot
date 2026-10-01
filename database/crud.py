@@ -499,6 +499,25 @@ def add_message(
 def get_messages(db: Session, conversation_id: int) -> List[Message]:
     return db.query(Message).filter(Message.conversation_id == conversation_id).order_by(Message.created_at.asc()).all()
 
+def update_conversation_title(db: Session, conv_id: int, title: str) -> Optional[Conversation]:
+    conv = get_conversation_by_id(db, conv_id)
+    if not conv:
+        return None
+    conv.title = title
+    from database.models import utc_now
+    conv.updated_at = utc_now()
+    db.flush()
+    return conv
+
+def delete_conversation(db: Session, conv_id: int) -> bool:
+    conv = get_conversation_by_id(db, conv_id)
+    if not conv:
+        return False
+    db.query(Message).filter(Message.conversation_id == conv_id).delete()
+    db.delete(conv)
+    db.flush()
+    return True
+
 
 # ============================================================================
 # Memory CRUD

@@ -611,6 +611,99 @@ class AIProviderManager:
         text = offline.generate_text(prompt, system_instruction, temperature, max_tokens)
         return text, "Offline", offline.get_model_name(), True
 
+    def stream_text_with_resilience(
+        self,
+        prompt: str,
+        system_instruction: str = "",
+        temperature: float = 0.3,
+        max_tokens: int = 2000,
+        preferred: Optional[str] = None
+    ) -> Generator[Dict[str, Any], None, None]:
+        """
+        Executes streaming token generation with automatic circuit-breaker and mid-stream fallback:
+        Attempts Gemini -> on failure mid-stream emits 'provider_switch' and restarts cleanly with fallback.
+        Yields dicts with:
+          - {"type": "provider_info", "provider": "Gemini", "model": "gemini-2.0-flash"}
+          - {"type": "token", "text": "..."}
+          - {"type": "provider_switch", "from_provider": "Gemini", "to_provider": "Offline", "reason": "...", "action": "restart"}
+          - {"type": "done", "provider": "...", "model": "..."}
+        """
+        settings.reload()
+        choice = (preferred or os.getenv("AI_PROVIDER") or settings.PREFERRED_PROVIDER or "auto").strip().lower()
+
+        # Step 1: Decide initial provider
+        can_try_gemini = False
+        gemini = GeminiProvider()
+        if choice in ("gemini", "auto") and gemini.is_available() and self.gemini_circuit.can_attempt():
+            can_try_gemini = True
+
+        can_try_openai = False
+        openai_p = OpenAIProvider()
+        if choice in ("openai", "auto") and openai_p.is_available() and self.openai_circuit.can_attempt():
+            can_try_openai = True
+
+        # Try Gemini stream
+        if can_try_gemini:
+            t0 = time.time()
+            emitted_any = False
+            gemini_model = getattr(gemini, "model", gemini.get_model_name())
+            try:
+                yield {"type": "provider_info", "provider": "Gemini", "model": gemini_model}
+                for chunk in gemini.stream_text(prompt, system_instruction, temperature, max_tokens):
+                    emitted_any = True
+                    yield {"type": "token", "text": chunk}
+                duration = (time.time() - t0) * 1000
+                self.gemini_circuit.record_success(duration)
+                yield {"type": "done", "provider": "Gemini", "model": gemini_model}
+                return
+            except Exception as exc:
+                self.gemini_circuit.record_failure()
+                logger.warning(f"Gemini streaming failed (emitted={emitted_any}): {exc}. Triggering provider fallback...")
+                next_target = "OpenAI" if can_try_openai else "Offline"
+                sanitized_err = re.sub(r'AIza[0-9A-Za-z-_]{35}', '[REDACTED]', str(exc))
+                sanitized_err = re.sub(r'key=[^&\s]+', 'key=[REDACTED]', sanitized_err)
+                yield {
+                    "type": "provider_switch",
+                    "from_provider": "Gemini",
+                    "to_provider": next_target,
+                    "reason": sanitized_err,
+                    "action": "restart"
+                }
+
+        # Try OpenAI stream (fallback or primary)
+        if can_try_openai:
+            t0 = time.time()
+            emitted_any = False
+            openai_model = getattr(openai_p, "model", openai_p.get_model_name())
+            try:
+                yield {"type": "provider_info", "provider": "OpenAI", "model": openai_model}
+                for chunk in openai_p.stream_text(prompt, system_instruction, temperature, max_tokens):
+                    emitted_any = True
+                    yield {"type": "token", "text": chunk}
+                duration = (time.time() - t0) * 1000
+                self.openai_circuit.record_success(duration)
+                yield {"type": "done", "provider": "OpenAI", "model": openai_model}
+                return
+            except Exception as exc:
+                self.openai_circuit.record_failure()
+                logger.warning(f"OpenAI streaming failed: {exc}. Triggering Offline fallback...")
+                sanitized_err = re.sub(r'sk-[0-9A-Za-z-_]{20,}', '[REDACTED]', str(exc))
+                yield {
+                    "type": "provider_switch",
+                    "from_provider": "OpenAI",
+                    "to_provider": "Offline",
+                    "reason": sanitized_err,
+                    "action": "restart"
+                }
+
+        # Fallback to OfflineMockProvider
+        offline = OfflineMockProvider()
+        yield {"type": "provider_info", "provider": "Offline", "model": offline.get_model_name()}
+        for chunk in offline.stream_text(prompt, system_instruction, temperature, max_tokens):
+            yield {"type": "token", "text": chunk}
+        yield {"type": "done", "provider": "Offline", "model": offline.get_model_name()}
+
+
     def get_telemetry(self) -> Dict[str, Any]:
         """Returns health, circuit states, and diagnostics."""
         settings.reload()

@@ -207,6 +207,22 @@ class ChatQueryResponse(BaseModel):
     conversation_id: Optional[int] = None
 
 
+class ChatStreamRequest(BaseModel):
+    question: str = Field(..., min_length=1)
+    subject_id: Optional[int] = None
+    style: str = "Simple explanation"
+    conversation_id: Optional[int] = None
+
+
+class ConversationCreateRequest(BaseModel):
+    title: Optional[str] = "New Conversation"
+    subject_id: Optional[int] = None
+
+
+class ConversationUpdateRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+
+
 class ConversationResponse(BaseModel):
     id: int
     title: str
