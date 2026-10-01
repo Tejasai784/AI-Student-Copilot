@@ -149,6 +149,47 @@ class Settings:
     def PREFERRED_PROVIDER(self) -> str:
         return os.getenv("PREFERRED_PROVIDER", "auto").strip().lower()
 
+    @property
+    def JWT_SECRET(self) -> str:
+        return os.getenv("JWT_SECRET", "ai-student-copilot-dev-secret-key-change-in-production-v2").strip()
+
+    @property
+    def JWT_ALGORITHM(self) -> str:
+        return os.getenv("JWT_ALGORITHM", "HS256").strip()
+
+    @property
+    def ACCESS_TOKEN_EXPIRE_MINUTES(self) -> int:
+        try:
+            return int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+        except (ValueError, TypeError):
+            return 60
+
+    @property
+    def REFRESH_TOKEN_EXPIRE_DAYS(self) -> int:
+        try:
+            return int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+        except (ValueError, TypeError):
+            return 7
+
+    @property
+    def CORS_ORIGINS(self) -> list[str]:
+        raw = os.getenv("CORS_ORIGINS", "")
+        if raw.strip():
+            return [origin.strip() for origin in raw.split(",") if origin.strip()]
+        return [
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:8501",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:8501",
+        ]
+
+    @property
+    def GEMINI_FALLBACK_MODELS(self) -> list[str]:
+        raw = os.getenv("GEMINI_FALLBACK_MODELS", "gemini-2.0-flash-lite,gemini-1.5-flash")
+        return [m.strip() for m in raw.split(",") if m.strip()]
+
     def reload(self) -> None:
         """Refreshes environment variables from disk."""
         reload_env()

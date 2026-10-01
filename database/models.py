@@ -11,6 +11,7 @@ class StudentProfile(Base):
     __tablename__ = "student_profiles"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     name = Column(String(100), nullable=False)
     course = Column(String(100), nullable=False)
     branch = Column(String(100), nullable=False)
@@ -29,6 +30,7 @@ class Subject(Base):
     __tablename__ = "subjects"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     name = Column(String(150), nullable=False)
     code = Column(String(50), nullable=False, index=True)
     semester = Column(String(50), nullable=False)
@@ -71,6 +73,7 @@ class Document(Base):
     __tablename__ = "documents"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     filename = Column(String(255), nullable=False)
     stored_filename = Column(String(255), nullable=False, unique=True)
     file_path = Column(String(500), nullable=False)
@@ -123,6 +126,7 @@ class StudentSettings(Base):
     __tablename__ = "student_settings"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     preferred_provider = Column(String(50), default="auto", nullable=False)  # auto | gemini | openai
     default_answer_style = Column(String(80), default="Simple explanation", nullable=False)
     default_difficulty = Column(String(20), default="medium", nullable=False)
@@ -152,6 +156,7 @@ class ExamAttempt(Base):
     __tablename__ = "exam_attempts"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     title = Column(String(255), nullable=False, default="Practice Exam")
     exam_kind = Column(String(30), nullable=False, default="practice")  # practice | quiz | exam
     subject_id = Column(Integer, ForeignKey("subjects.id", ondelete="CASCADE"), nullable=True, index=True)
@@ -233,6 +238,7 @@ class StudyPlan(Base):
     __tablename__ = "study_plans"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     title = Column(String(255), nullable=False)
     horizon = Column(String(20), nullable=False, default="weekly")  # daily | weekly
     status = Column(String(20), nullable=False, default="ACTIVE")
@@ -274,14 +280,31 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(100), unique=True, nullable=False, index=True)
     email = Column(String(255), unique=True, nullable=True, index=True)
+    hashed_password = Column(String(255), nullable=True)
     full_name = Column(String(150), nullable=True)
     role = Column(String(50), default="student", nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan", lazy="selectin")
     goals = relationship("Goal", back_populates="user", cascade="all, delete-orphan", lazy="selectin")
     memories = relationship("Memory", back_populates="user", cascade="all, delete-orphan", lazy="selectin")
+    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan", lazy="selectin")
+
+
+class RefreshToken(Base):
+    """Active refresh tokens for session revocation."""
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token = Column(String(500), unique=True, nullable=False, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    revoked = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+    user = relationship("User", back_populates="refresh_tokens")
 
 
 class Conversation(Base):

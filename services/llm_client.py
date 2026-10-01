@@ -5,7 +5,13 @@ from typing import Optional, Tuple, Dict, Any
 
 from backend.config import settings
 from backend.logging_config import logger
-from models.ai_provider import get_ai_provider, GeminiProvider, OpenAIProvider, OfflineMockProvider
+from models.ai_provider import (
+    get_ai_provider,
+    GeminiProvider,
+    OpenAIProvider,
+    OfflineMockProvider,
+    AIProviderManager
+)
 
 
 def llm_available() -> bool:
@@ -72,26 +78,22 @@ def call_llm(
     allow_offline: bool = True
 ) -> Tuple[str, str]:
     """
-    Returns (text, model_label).
-    Attempts configured online providers first. If unavailable and allow_offline is True,
-    gracefully uses the deterministic offline academic model.
+    Returns (text, model_label) using AIProviderManager with automatic fallback resilience.
     """
     settings.reload()
     order = (preferred or settings.PREFERRED_PROVIDER or "auto").strip().lower()
 
-    # Try live providers if available
-    if llm_available() and order != "offline":
-        try:
-            provider = get_ai_provider(preferred=preferred)
-            if not isinstance(provider, OfflineMockProvider):
-                text = provider.generate_text(prompt, system_instruction=system_instruction)
-                if text:
-                    return text, provider.get_model_name()
-        except Exception as exc:
-            logger.warning(f"Preferred LLM provider failed: {type(exc).__name__}: {exc}")
-
-    if allow_offline:
+    if order == "offline":
         mock = OfflineMockProvider()
         return mock.generate_text(prompt, system_instruction=system_instruction), mock.get_model_name()
 
-    raise RuntimeError("No LLM API key configured and offline fallback disabled.")
+    manager = AIProviderManager()
+    text, provider_name, model_name, is_fb = manager.generate_text_with_resilience(
+        prompt=prompt,
+        system_instruction=system_instruction
+    )
+
+    if not allow_offline and provider_name == "Offline":
+        raise RuntimeError("No LLM API key configured and offline fallback disabled.")
+
+    return text, model_name

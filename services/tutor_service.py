@@ -353,3 +353,6 @@ def get_tutor_response(
             query=query,
             answer_mode=answer_mode,
         )
+
+
+ask_tutor = get_tutor_response

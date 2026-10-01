@@ -70,14 +70,49 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS Middleware
+# CORS Middleware with strict origin allowlist
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ============================================================================
+# MOUNT MODULAR V1 ROUTERS
+# ============================================================================
+from backend.routers import (
+    auth,
+    students,
+    subjects,
+    documents,
+    chat,
+    study_plan,
+    quizzes,
+    analytics,
+    reports,
+    memory,
+    agents,
+    providers,
+    diagnostics,
+    goals,
+)
+
+app.include_router(auth.router)
+app.include_router(students.router)
+app.include_router(subjects.router)
+app.include_router(documents.router)
+app.include_router(chat.router)
+app.include_router(study_plan.router)
+app.include_router(quizzes.router)
+app.include_router(analytics.router)
+app.include_router(reports.router)
+app.include_router(memory.router)
+app.include_router(agents.router)
+app.include_router(providers.router)
+app.include_router(diagnostics.router)
+app.include_router(goals.router)
 
 
 # Dependency to get DB session
