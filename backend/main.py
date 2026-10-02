@@ -7,7 +7,7 @@ import json
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query, Request
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel, Field
@@ -70,7 +70,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS Middleware with strict origin allowlist and production Vercel origin support
+# CORS Middleware with strict origin allowlist, regex support, and max-age caching
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -78,7 +78,66 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,
 )
+
+
+@app.middleware("http")
+async def ensure_cors_headers(request: Request, call_next):
+    """Guarantees CORS headers on every response, including preflight OPTIONS and error responses."""
+    origin = request.headers.get("origin")
+    is_allowed = settings.is_allowed_origin(origin) if origin else False
+
+    # Short-circuit handle any OPTIONS preflight request from allowed origins
+    if request.method == "OPTIONS" and origin and is_allowed:
+        return Response(
+            content="OK",
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT, QUERY",
+                "Access-Control-Allow-Headers": request.headers.get("access-control-request-headers", "*"),
+                "Access-Control-Max-Age": "86400",
+            },
+        )
+
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        logger.error(f"Unhandled server error on {request.url.path}: {exc}", exc_info=True)
+        response = JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(exc), "message": "Internal server error"},
+        )
+
+    if origin and is_allowed:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT, QUERY"
+        response.headers["Access-Control-Expose-Headers"] = "*"
+
+    return response
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Fallback exception handler ensuring CORS headers accompany any 500 responses."""
+    origin = request.headers.get("origin")
+    headers: dict[str, str] = {}
+    if origin and settings.is_allowed_origin(origin):
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+        headers["Access-Control-Allow-Methods"] = "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT, QUERY"
+        headers["Access-Control-Expose-Headers"] = "*"
+    logger.error(f"Global exception handler caught on {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"success": False, "error": str(exc), "message": "Internal server error"},
+        headers=headers,
+    )
+
 
 # ============================================================================
 # MOUNT MODULAR V1 ROUTERS

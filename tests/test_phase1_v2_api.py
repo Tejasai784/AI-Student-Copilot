@@ -273,15 +273,34 @@ def test_cors_configuration(client):
     assert res_vercel_options.headers.get("access-control-allow-origin") == "https://ai-student-copilot-pi.vercel.app"
     assert res_vercel_options.headers.get("access-control-allow-credentials") == "true"
 
-    # 2. Simple GET for Vercel production origin
+    # 2. Preflight with trailing slash in Origin
+    res_slash_options = client.options(
+        "/api/v1/students/profile",
+        headers={
+            "Origin": "https://ai-student-copilot-pi.vercel.app/",
+            "Access-Control-Request-Method": "GET",
+        }
+    )
+    assert res_slash_options.status_code == 200
+    assert res_slash_options.headers.get("access-control-allow-origin") == "https://ai-student-copilot-pi.vercel.app/"
+
+    # 3. Simple GET for Vercel production origin
     res_vercel_get = client.get(
-        "/api/v1/diagnostics/health",
+        "/api/v1/students/profile",
         headers={"Origin": "https://ai-student-copilot-pi.vercel.app"}
     )
     assert res_vercel_get.status_code == 200
     assert res_vercel_get.headers.get("access-control-allow-origin") == "https://ai-student-copilot-pi.vercel.app"
 
-    # 3. Localhost origin
+    # 4. Root Vercel project domain
+    res_root_vercel = client.get(
+        "/api/v1/students/profile",
+        headers={"Origin": "https://ai-student-copilot.vercel.app"}
+    )
+    assert res_root_vercel.status_code == 200
+    assert res_root_vercel.headers.get("access-control-allow-origin") == "https://ai-student-copilot.vercel.app"
+
+    # 5. Localhost origin
     res_local = client.get(
         "/api/v1/diagnostics/health",
         headers={"Origin": "http://localhost:5173"}
@@ -289,7 +308,7 @@ def test_cors_configuration(client):
     assert res_local.status_code == 200
     assert res_local.headers.get("access-control-allow-origin") == "http://localhost:5173"
 
-    # 4. Vercel preview domain (regex)
+    # 6. Vercel preview domain (regex)
     res_preview = client.get(
         "/api/v1/diagnostics/health",
         headers={"Origin": "https://ai-student-copilot-git-test.vercel.app"}
@@ -297,7 +316,7 @@ def test_cors_configuration(client):
     assert res_preview.status_code == 200
     assert res_preview.headers.get("access-control-allow-origin") == "https://ai-student-copilot-git-test.vercel.app"
 
-    # 5. Unauthorized origin
+    # 7. Unauthorized origin
     res_unauth = client.get(
         "/api/v1/diagnostics/health",
         headers={"Origin": "https://unauthorized-origin.com"}

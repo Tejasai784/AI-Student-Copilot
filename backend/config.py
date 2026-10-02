@@ -181,6 +181,9 @@ class Settings:
             "http://127.0.0.1:5173",
             "http://127.0.0.1:8501",
             "https://ai-student-copilot-pi.vercel.app",
+            "https://ai-student-copilot-pi.vercel.app/",
+            "https://ai-student-copilot.vercel.app",
+            "https://ai-student-copilot.vercel.app/",
         ]
         raw = os.getenv("CORS_ORIGINS", "").strip()
         if raw:
@@ -196,11 +199,28 @@ class Settings:
             for o in extra:
                 if o not in origins:
                     origins.append(o)
+                o_slash = o.rstrip("/") + "/"
+                if o_slash not in origins:
+                    origins.append(o_slash)
         return origins
 
     @property
     def CORS_ORIGIN_REGEX(self) -> str:
-        return os.getenv("CORS_ORIGIN_REGEX", r"^https:\/\/.*\.vercel\.app$").strip()
+        return os.getenv("CORS_ORIGIN_REGEX", r"^https:\/\/[a-zA-Z0-9\.\-_]*vercel\.app\/?$").strip()
+
+    def is_allowed_origin(self, origin: str) -> bool:
+        """Determines if a given Origin header matches the configured CORS allowlist or regex."""
+        if not origin:
+            return False
+        norm = origin.rstrip("/")
+        for allowed in self.CORS_ORIGINS:
+            if norm == allowed.rstrip("/"):
+                return True
+        if self.CORS_ORIGIN_REGEX:
+            import re
+            if re.match(self.CORS_ORIGIN_REGEX, origin) or re.match(self.CORS_ORIGIN_REGEX, norm):
+                return True
+        return False
 
     @property
     def GEMINI_FALLBACK_MODELS(self) -> list[str]:
