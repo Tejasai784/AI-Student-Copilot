@@ -179,8 +179,34 @@ export const ChatView: React.FC = () => {
             setMessages((prev) => [...prev, assistantMsg]);
             setStreamTokens('');
           },
-          onError: (err) => {
-            console.error('Stream error:', err);
+          onError: async (err) => {
+            console.error('Stream error, attempting direct chat API fallback:', err);
+            try {
+              setStreamStage('Contacting academic tutor directly...');
+              const directResp = await api.askQuestion({
+                question: q,
+                subject_id: selectedSubjectId,
+                style: style,
+                conversation_id: activeConvId || undefined,
+              });
+              if (!activeConvId) {
+                setActiveConvId(directResp.conversation_id);
+                loadConversations();
+              }
+              const assistantMsg: Message = {
+                id: Date.now(),
+                conversation_id: directResp.conversation_id,
+                role: 'assistant',
+                content: directResp.answer,
+                agent_name: directResp.model_used,
+                created_at: new Date().toISOString(),
+                citations: directResp.citations || [],
+              };
+              setMessages((prev) => [...prev, assistantMsg]);
+              setStreamTokens('');
+            } catch (fallbackErr: any) {
+              console.error('Direct chat API also failed:', fallbackErr);
+            }
           },
         },
         abortCtrl.signal

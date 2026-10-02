@@ -10,6 +10,8 @@ export interface StreamCallbacks {
   onError?: (err: Error) => void;
 }
 
+const API_BASE = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/$/, '') + '/api/v1';
+
 export function streamChat(
   params: {
     question: string;
@@ -22,7 +24,7 @@ export function streamChat(
 ): Promise<void> {
   return new Promise(async (resolve, reject) => {
     try {
-      const response = await fetch('/api/v1/chat/stream', {
+      const response = await fetch(`${API_BASE}/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -48,7 +48,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return 'Good evening';
   };
 
-  const studentName = data?.student_name || 'Alex';
+  const studentName = data?.student_name || 'M Teja sai';
   const progressPct = data?.study_progress || 68.5;
   const activeGoal = goals.length > 0 ? goals[0] : null;
   const pendingTasks = activeGoal?.tasks?.filter((t) => t.status !== 'COMPLETED') || [];

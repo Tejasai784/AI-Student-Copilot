@@ -25,7 +25,7 @@ import {
   SystemDiagnosticsData,
 } from '../types';
 
-const API_BASE = '/api/v1';
+const API_BASE = ((import.meta as any).env?.VITE_API_URL || '').replace(/\/$/, '') + '/api/v1';
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -389,5 +389,27 @@ export const api = {
       }
       return { ...m, citations };
     });
+  },
+
+  async askQuestion(data: {
+    question: string;
+    conversation_id?: number;
+    subject_id?: number;
+    style?: string;
+  }): Promise<{
+    answer: string;
+    citations: CitationItem[];
+    confidence_score: number;
+    provider_used: string;
+    model_used: string;
+    is_fallback: boolean;
+    conversation_id: number;
+  }> {
+    const res = await fetch(`${API_BASE}/chat/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return handleResponse(res);
   },
 };

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { api } from '../../lib/api';
+import { StudentProfile } from '../../types';
 
 export type NavTab =
   | 'dashboard'
@@ -55,6 +56,7 @@ export const AppShell: React.FC<AppShellProps> = ({ currentTab, onSelectTab, chi
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [providerInfo, setProviderInfo] = useState<string>('Detecting...');
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
 
   useEffect(() => {
     api.getProvidersTelemetry()
@@ -69,6 +71,30 @@ export const AppShell: React.FC<AppShellProps> = ({ currentTab, onSelectTab, chi
       })
       .catch(() => setProviderInfo('Offline Mode'));
   }, []);
+
+  useEffect(() => {
+    api.getProfile()
+      .then((p) => {
+        if (p && p.name) {
+          setProfile(p);
+        }
+      })
+      .catch(console.error);
+  }, [currentTab]);
+
+  const studentName = profile?.name || 'M Teja sai';
+  const getInitials = (name: string): string => {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'TS';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + (parts[1]?.[0] || parts[0][1] || '')).toUpperCase();
+  };
+  const studentInitials = getInitials(studentName);
+  const studentBranchOrCourse = profile?.branch ? profile.branch.toUpperCase() : 'CSE';
+  const studentYear = profile?.year
+    ? profile.year.replace(/\byear\b/i, 'Year')
+    : '2nd Year';
+  const studentSubtext = `${studentBranchOrCourse} · ${studentYear}`;
 
   const navGroups = [
     {
@@ -179,12 +205,12 @@ export const AppShell: React.FC<AppShellProps> = ({ currentTab, onSelectTab, chi
         <div className="p-3 border-t border-border bg-surface-muted/40">
           <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
             <div className="h-8 w-8 rounded-full bg-focus/15 text-focus font-heading font-bold text-xs flex items-center justify-center flex-shrink-0">
-              AL
+              {studentInitials}
             </div>
             {!collapsed && (
               <div className="overflow-hidden">
-                <p className="text-xs font-semibold text-ink truncate">Alex Morgan</p>
-                <p className="text-[11px] text-ink-muted truncate">CS · 3rd Year</p>
+                <p className="text-xs font-semibold text-ink truncate">{studentName}</p>
+                <p className="text-[11px] text-ink-muted truncate">{studentSubtext}</p>
               </div>
             )}
           </div>

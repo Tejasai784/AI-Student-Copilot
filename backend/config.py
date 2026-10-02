@@ -187,7 +187,7 @@ class Settings:
 
     @property
     def GEMINI_FALLBACK_MODELS(self) -> list[str]:
-        raw = os.getenv("GEMINI_FALLBACK_MODELS", "gemini-2.0-flash-lite,gemini-1.5-flash")
+        raw = os.getenv("GEMINI_FALLBACK_MODELS", "gemini-3.5-flash-lite,gemini-3.8-flash,gemini-2.0-flash-lite")
         return [m.strip() for m in raw.split(",") if m.strip()]
 
     def reload(self) -> None:

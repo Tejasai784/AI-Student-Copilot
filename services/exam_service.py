@@ -161,13 +161,16 @@ def maybe_expire_and_submit(db: Session, attempt_id: int) -> ExamAttempt:
 
 
 def attempt_overview(attempt: ExamAttempt) -> Dict[str, Any]:
+    q_count = len(attempt.questions or [])
+    accuracy = attempt.accuracy or 0.0
     return {
+        # Original fields (preserved for backward compatibility)
         "id": attempt.id,
         "title": attempt.title,
         "status": attempt.status,
         "score": attempt.total_score,
         "max_score": attempt.max_score,
-        "accuracy": attempt.accuracy,
+        "accuracy": accuracy,
         "difficulty": attempt.difficulty,
         "kind": attempt.exam_kind,
         "subject_id": attempt.subject_id,
@@ -176,6 +179,13 @@ def attempt_overview(attempt: ExamAttempt) -> Dict[str, Any]:
         "started_at": attempt.started_at,
         "submitted_at": attempt.submitted_at,
         "remaining_seconds": remaining_seconds(attempt) if attempt.status == "IN_PROGRESS" else 0,
-        "question_count": len(attempt.questions or []),
+        "question_count": q_count,
         "current_index": attempt.current_index,
+        # Frontend-compatible aliases matching the QuizAttempt TypeScript interface
+        "percentage": accuracy,  # accuracy is already stored as 0-100 value
+        "total_marks": attempt.max_score or 0,
+        "user_marks": attempt.total_score or 0,
+        "exam_kind": attempt.exam_kind or "PRACTICE_QUIZ",
+        "questions_count": q_count,
+        "created_at": (attempt.started_at.isoformat() if attempt.started_at else None),
     }
