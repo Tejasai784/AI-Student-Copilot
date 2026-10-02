@@ -4,7 +4,20 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AppShell, NavTab } from './components/layout/AppShell';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { ChatView } from './components/chat/ChatView';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { MaterialsView } from './components/materials/MaterialsView';
+import { KnowledgeView } from './components/knowledge/KnowledgeView';
+import { SyllabusView } from './components/syllabus/SyllabusView';
+import { QuizzesView } from './components/quizzes/QuizzesView';
+import { MockExamsView } from './components/mock_exams/MockExamsView';
+import { PlannerView } from './components/planner/PlannerView';
+import { GoalsView } from './components/goals/GoalsView';
+import { WeaknessesView } from './components/weaknesses/WeaknessesView';
+import { AnalyticsView } from './components/analytics/AnalyticsView';
+import { ReportsView } from './components/reports/ReportsView';
+import { MemoryView } from './components/memory/MemoryView';
+import { AgentsView } from './components/agents/AgentsView';
+import { SettingsView } from './components/settings/SettingsView';
+import { DiagnosticsView } from './components/diagnostics/DiagnosticsView';
 
 const queryClient = new QueryClient();
 
@@ -23,34 +36,38 @@ export const AppContent: React.FC = () => {
 
       {currentTab === 'chat' && <ChatView />}
 
-      {currentTab !== 'dashboard' && currentTab !== 'chat' && (
-        <div className="p-8 max-w-4xl mx-auto text-center py-20 space-y-4">
-          <div className="h-14 w-14 rounded-2xl bg-focus/10 text-focus flex items-center justify-center mx-auto shadow-sm">
-            <Sparkles size={28} />
-          </div>
-          <h2 className="font-heading font-bold text-2xl text-ink capitalize">
-            {currentTab.replace('_', ' ')}
-          </h2>
-          <p className="text-sm text-ink-muted max-w-md mx-auto">
-            This module connects directly to your verified ASIP V2.0 backend services. You can practice in AI Chat or review Today's progress on the Dashboard.
-          </p>
-          <div className="pt-4 flex items-center justify-center gap-3">
-            <button
-              onClick={() => setCurrentTab('dashboard')}
-              className="px-4 py-2 rounded-lg bg-surface border border-border text-xs font-semibold text-ink hover:bg-surface-muted transition-colors"
-            >
-              Back to Dashboard
-            </button>
-            <button
-              onClick={() => setCurrentTab('chat')}
-              className="px-4 py-2 rounded-lg bg-focus text-white text-xs font-semibold hover:bg-focus-hover flex items-center gap-1.5 shadow-sm transition-colors"
-            >
-              <span>Open AI Tutor</span>
-              <ArrowRight size={14} />
-            </button>
-          </div>
-        </div>
+      {currentTab === 'knowledge' && <KnowledgeView />}
+
+      {currentTab === 'materials' && <MaterialsView />}
+
+      {currentTab === 'syllabus' && <SyllabusView />}
+
+      {currentTab === 'quizzes' && <QuizzesView />}
+
+      {currentTab === 'mock_exams' && <MockExamsView />}
+
+      {currentTab === 'planner' && <PlannerView />}
+
+      {currentTab === 'goals' && <GoalsView />}
+
+      {currentTab === 'weaknesses' && (
+        <WeaknessesView
+          onPracticeTopic={() => setCurrentTab('quizzes')}
+          onAskTutor={() => setCurrentTab('chat')}
+        />
       )}
+
+      {currentTab === 'analytics' && <AnalyticsView />}
+
+      {currentTab === 'reports' && <ReportsView />}
+
+      {currentTab === 'memory' && <MemoryView />}
+
+      {currentTab === 'agents' && <AgentsView />}
+
+      {currentTab === 'settings' && <SettingsView />}
+
+      {currentTab === 'diagnostics' && <DiagnosticsView />}
     </AppShell>
   );
 };

@@ -558,13 +558,20 @@ def save_memory(
     db.flush()
     return mem
 
-def get_memories(db: Session, memory_type: Optional[str] = None, exclude_sensitive: bool = False) -> List[Memory]:
+def get_memories(
+    db: Session,
+    memory_type: Optional[str] = None,
+    exclude_sensitive: bool = False,
+    user_id: Optional[int] = None
+) -> List[Memory]:
     query = db.query(Memory)
     if memory_type:
         query = query.filter(Memory.memory_type == memory_type)
     if exclude_sensitive:
         query = query.filter(Memory.is_sensitive == False)
-    return query.order_by(Memory.importance.asc(), Memory.created_at.desc()).all()
+    if user_id:
+        query = query.filter((Memory.user_id == user_id) | (Memory.user_id == None) | (Memory.user_id == 1))
+    return query.order_by(Memory.importance.desc(), Memory.created_at.desc()).all()
 
 def delete_memory(db: Session, memory_id: int) -> bool:
     mem = db.query(Memory).filter(Memory.id == memory_id).first()

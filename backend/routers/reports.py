@@ -21,6 +21,10 @@ def get_exam_readiness(
 ):
     """Generates an academic readiness evaluation report for a subject or general course."""
     rep = generate_exam_readiness_report(db, subject_id=subject_id)
+    if "overall_readiness_score" not in rep and "readiness_score" in rep:
+        rep["overall_readiness_score"] = rep["readiness_score"]
+    if "subject_name" not in rep and "subject" in rep:
+        rep["subject_name"] = rep["subject"]
     return ApiResponse(success=True, data=rep)
 
 

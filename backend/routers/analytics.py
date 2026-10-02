@@ -24,6 +24,13 @@ def get_performance_analytics(
 ):
     """Retrieves aggregated performance analytics, accuracy trends, and subject mastery."""
     perf = compute_performance(db)
+    # Enrich with canonical aliases for frontend and test suite
+    perf["average_percentage"] = round(float(perf.get("overall_accuracy", 0.0)) * 100.0, 1)
+    perf["accuracy_rate"] = float(perf.get("overall_accuracy", 0.0))
+    perf["total_exams"] = int(perf.get("total_attempts", 0))
+    perf["total_questions_answered"] = sum(
+        t.get("n", 0) for t in perf.get("topic_mastery", [])
+    )
     return ApiResponse(success=True, data=perf)
 
 
