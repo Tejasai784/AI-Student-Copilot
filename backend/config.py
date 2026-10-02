@@ -173,17 +173,34 @@ class Settings:
 
     @property
     def CORS_ORIGINS(self) -> list[str]:
-        raw = os.getenv("CORS_ORIGINS", "")
-        if raw.strip():
-            return [origin.strip() for origin in raw.split(",") if origin.strip()]
-        return [
+        origins = [
             "http://localhost:3000",
             "http://localhost:5173",
             "http://localhost:8501",
             "http://127.0.0.1:3000",
             "http://127.0.0.1:5173",
             "http://127.0.0.1:8501",
+            "https://ai-student-copilot-pi.vercel.app",
         ]
+        raw = os.getenv("CORS_ORIGINS", "").strip()
+        if raw:
+            extra: list[str] = []
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    extra = [str(item).strip() for item in parsed if str(item).strip()]
+                elif isinstance(parsed, str):
+                    extra = [o.strip() for o in parsed.split(",") if o.strip()]
+            except Exception:
+                extra = [o.strip().strip("'\"[]") for o in raw.split(",") if o.strip().strip("'\"[]")]
+            for o in extra:
+                if o not in origins:
+                    origins.append(o)
+        return origins
+
+    @property
+    def CORS_ORIGIN_REGEX(self) -> str:
+        return os.getenv("CORS_ORIGIN_REGEX", r"^https:\/\/.*\.vercel\.app$").strip()
 
     @property
     def GEMINI_FALLBACK_MODELS(self) -> list[str]:
