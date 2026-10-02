@@ -636,6 +636,22 @@ def get_diagnostics(db: Session = Depends(get_db_session)):
     }
 
 
+# Serve production React Single Page Application (SPA) if built
+dist_dir = settings.BASE_DIR / "frontend" / "dist"
+if dist_dir.exists() and (dist_dir / "index.html").exists():
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+
+    assets_dir = dist_dir / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="frontend_assets")
+
+    @app.get("/app", response_class=FileResponse, tags=["Frontend"])
+    @app.get("/app/{full_path:path}", response_class=FileResponse, tags=["Frontend"])
+    def serve_frontend_spa(full_path: str = ""):
+        return FileResponse(dist_dir / "index.html")
+
+
 # Root route: provides informative API entry point and link to interactive docs
 @app.get("/", response_class=HTMLResponse, tags=["System"])
 def root_index():
@@ -649,8 +665,10 @@ def root_index():
         h1 { color: #38BDF8; margin-top: 0; }
         a { color: #38BDF8; text-decoration: none; font-weight: bold; }
         .badge { background: #0284C7; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
-        .btn { display: inline-block; background: #2563EB; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; margin-top: 15px; font-weight: 600; }
+        .btn { display: inline-block; background: #2563EB; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; margin-top: 15px; font-weight: 600; margin-right: 10px; }
         .btn:hover { background: #1D4ED8; }
+        .btn-focus { background: #0F8B8D; }
+        .btn-focus:hover { background: #0c6f71; }
         ul { line-height: 1.8; }
     </style>
 </head>
@@ -662,12 +680,14 @@ def root_index():
         
         <h3>⚡ Quick Navigation</h3>
         <ul>
+            <li><strong>Modern React Web Application:</strong> <a href="/app">/app</a></li>
             <li><strong>Swagger API Interactive Docs:</strong> <a href="/docs">/docs</a></li>
             <li><strong>ReDoc Alternative Documentation:</strong> <a href="/redoc">/redoc</a></li>
             <li><strong>System Diagnostics & Telemetry:</strong> <a href="/api/diagnostics">/api/diagnostics</a></li>
             <li><strong>System Health:</strong> <a href="/api/health">/api/health</a></li>
         </ul>
 
+        <a href="/app" class="btn btn-focus">Launch React Studio App</a>
         <a href="/docs" class="btn">Explore OpenAPI Swagger UI</a>
     </div>
 </body>

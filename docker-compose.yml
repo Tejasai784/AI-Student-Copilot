@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  asip-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asip_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-asip_v2_production_secret_key_change_in_prod}
+    volumes:
+      - asip_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/diagnostics/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  asip-streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: asip_streamlit
+    restart: unless-stopped
+    command: ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    ports:
+      - "8501:8501"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - asip_data:/app/data
+
+volumes:
+  asip_data:
+    name: asip_data_volume
