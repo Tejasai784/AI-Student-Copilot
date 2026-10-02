@@ -11,3 +11,6 @@ pandas>=2.0.0
 plotly>=5.0.0
 openai>=1.0.0
 google-genai>=1.0.0
+pyjwt>=2.8.0
+sse-starlette>=2.0.0
+alembic>=1.13.0

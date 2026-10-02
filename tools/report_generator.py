@@ -12,9 +12,13 @@ from database.database import get_db
 from database.crud import get_dashboard_summary, get_student_profile, get_goals
 
 
+from tools.schemas import ReportGeneratorInput
+
+
 class ReportGeneratorTool(BaseTool):
     name = "report_generator"
     description = "Generates a structured exam readiness report and revision roadmap in Markdown and HTML formats."
+    args_model = ReportGeneratorInput
     parameters_schema = {
         "type": "object",
         "properties": {
@@ -37,11 +41,21 @@ class ReportGeneratorTool(BaseTool):
 
     def execute(
         self,
-        subject_name: str,
+        subject_name: str = "Course Material",
         readiness_score: float = 85.0,
         weak_topics: Optional[list] = None,
         **kwargs
     ) -> Dict[str, Any]:
+        subj_id = kwargs.get("subject_id")
+        if subj_id and subject_name in ("Course Material", "", None):
+            try:
+                with get_db() as db:
+                    from database.crud import get_subject_by_id
+                    s = get_subject_by_id(db, subj_id)
+                    if s:
+                        subject_name = s.name
+            except Exception:
+                pass
         weak_list = weak_topics or ["Complex Recursion", "High-Volume Performance Tuning"]
         gen_time = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 

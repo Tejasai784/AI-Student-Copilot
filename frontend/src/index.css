@@ -1,0 +1,55 @@
+@import '@fontsource/bricolage-grotesque/600.css';
+@import '@fontsource/bricolage-grotesque/700.css';
+@import '@fontsource/figtree/400.css';
+@import '@fontsource/figtree/500.css';
+@import '@fontsource/figtree/600.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-ink: #14213D;
+  --color-ink-muted: #4B5875;
+  --color-canvas: #F4F6FA;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #EAEFF6;
+  --color-border: #DCE3EE;
+  --color-focus: #0F8B8D;
+  --color-focus-hover: #0D7577;
+  --color-spark: #F2A93B;
+  --color-weak: #D64561;
+  --color-good: #3FA66B;
+}
+
+.dark {
+  --color-ink: #F1F5F9;
+  --color-ink-muted: #94A3B8;
+  --color-canvas: #0E1424;
+  --color-surface: #161D33;
+  --color-surface-muted: #1E2942;
+  --color-border: #263352;
+  --color-focus: #14B8A6;
+  --color-focus-hover: #2DD4BF;
+  --color-spark: #FBBF24;
+  --color-weak: #F43F5E;
+  --color-good: #22C55E;
+}
+
+/* Custom scrollbars matching the calm studio aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-muted);
+}

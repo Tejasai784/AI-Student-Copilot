@@ -70,189 +70,256 @@ def match_subject_in_db(db: Session, query: str) -> Tuple[Optional[int], Optiona
     return None, None
 
 
-def route_request(db: Session, query: str, extra: Optional[dict] = None) -> OrchestratorResult:
+class AgentOrchestrator:
     """
-    Main AGI Controller execution engine.
-    Executes the structured State Machine with audit logging and full UI trace.
+    Master AGI Controller & Multi-Agent Orchestrator.
+    Coordinates all 9 specialist agents in a state machine:
+    1. Orchestrator (AGI Controller & State Machine Dispatcher)
+    2. Planner Agent
+    3. Study Agent
+    4. Coding Agent
+    5. Math Agent
+    6. Research Agent
+    7. Exam Agent
+    8. Memory Agent
+    9. Evaluation & Critic Agent
     """
-    extra = extra or {}
-    subject_id, subject_name = match_subject_in_db(db, query)
-    if extra.get("subject_id"):
-        subject_id = extra["subject_id"]
 
-    capabilities = detect_capabilities(query)
-    # Always include memory agent for long-term context
-    all_intents = list(capabilities)
-
-    # 1. State Machine: Stage 1 - Ingestion & Planning
-    plan_steps = [f"Analyze intent and match subject (matched: {subject_name or 'General'})"]
-    for cap in capabilities:
-        plan_steps.append(f"Delegate subtask to {cap.capitalize()} Agent")
-    plan_steps.append("Invoke Evaluation & Critic Agent for consistency and rubric check")
-    plan_steps.append("Update student long-term memory")
-
-    # Create AgentRun record in DB
-    agent_run = create_agent_run(
-        db=db,
-        agent_name="AGI Controller",
-        input_query=query,
-        plan_json=json.dumps(plan_steps)
-    )
-    agent_run_id = agent_run.id
-
-    trace: List[ExecutionTraceStep] = []
-    step_num = 1
-
-    def add_trace(stage: str, agent: str, action: str, details: Dict[str, Any]):
-        nonlocal step_num
-        trace.append(ExecutionTraceStep(
-            step_id=step_num,
-            stage=stage,
-            agent_name=agent,
-            action_description=action,
-            details=details,
-            timestamp=datetime.now(timezone.utc).strftime("%H:%M:%S")
-        ))
-        step_num += 1
-
-    add_trace("Goal", "AGI Controller", f"Received student goal: '{query[:80]}'", {"intents": capabilities})
-    add_trace("Plan", "AGI Controller", f"Formulated execution plan with {len(capabilities)} specialists", {"plan": plan_steps})
-
-    # Prepare common request
-    req = AgentRequest(
-        query=query,
-        subject_id=subject_id,
-        unit_number=extra.get("unit_number"),
-        topic_name=extra.get("topic_name"),
-        extra=extra,
-        user_id=extra.get("user_id")
-    )
-
-    # 2. State Machine: Stage 2 - Execute Specialist Agents
-    agent_results: List[AgentResult] = []
-
-    # Inject Memory first if applicable
-    mem_result = run_memory_agent(db, req, agent_run_id=agent_run_id)
-    agent_results.append(mem_result)
-    add_trace("Agent", "Memory Agent", "Retrieved student memory and context", {"total_memories": mem_result.data.get("total_memories")})
-
-    # Ordered execution of specialists
-    for cap in capabilities:
-        res = None
-        if cap == "planner":
-            res = run_planner_agent(db, req, agent_run_id=agent_run_id)
-        elif cap == "study":
-            res = run_study_agent(req, db=db, agent_run_id=agent_run_id)
-        elif cap == "coding":
-            res = run_coding_agent(req, db=db, agent_run_id=agent_run_id)
-        elif cap == "math":
-            res = run_math_agent(req, db=db, agent_run_id=agent_run_id)
-        elif cap == "research":
-            res = run_research_agent(req, db=db, agent_run_id=agent_run_id)
-        elif cap == "exam":
-            res = run_exam_agent(db, req, agent_run_id=agent_run_id)
-
-        if res:
-            agent_results.append(res)
-            # Log any tool executions that occurred
-            for tc in res.tool_calls:
-                add_trace("Tool", res.agent, f"Called tool '{tc.tool_name}' ({tc.status})", {
-                    "arguments": tc.arguments,
-                    "duration_ms": tc.execution_time_ms
-                })
-            add_trace("Result", res.agent, res.summary, {"ok": res.ok})
-
-    # 3. State Machine: Stage 3 - Combine Initial Outputs
-    combined_sections = []
-    if subject_name:
-        combined_sections.append(f"**Target Subject:** {subject_name}\n")
-
-    for r in agent_results:
-        if r.agent == "Memory Agent":
-            continue
-        status_icon = "✅" if r.ok else "⚠️"
-        combined_sections.append(f"### {status_icon} {r.agent}\n{r.summary}\n")
-        # Include detailed text if present
-        for key in ("explanation", "response", "solution", "research_summary"):
-            if key in r.data and r.data[key]:
-                combined_sections.append(str(r.data[key]))
-                break
-
-    initial_output = "\n\n".join(combined_sections)
-
-    # 4. State Machine: Stage 4 - Critic & Evaluation Check
-    critic_eval = evaluate_output_quality(
-        query=query,
-        combined_response=initial_output,
-        agent_results=agent_results,
-        db=db,
-        agent_run_id=agent_run_id
-    )
-    add_trace("Critic", "Evaluation & Critic Agent", f"Quality Assessment: {int(critic_eval.overall_score * 100)}/100", {
-        "score": critic_eval.overall_score,
-        "retry_required": critic_eval.retry_required,
-        "feedback": critic_eval.feedback
-    })
-
-    # 5. State Machine: Stage 5 - Controlled Retry / Revision Loop
-    final_output = initial_output
-    retry_count = 0
-    if critic_eval.retry_required and retry_count < 1:
-        retry_count = 1
-        add_trace("Revision", "AGI Controller", "Executing targeted revision to address quality gaps", {"notes": critic_eval.revision_notes})
-        # Re-run study agent with emphasis on query completeness
-        revised_res = run_study_agent(req, db=db, agent_run_id=agent_run_id)
-        if revised_res.ok and "explanation" in revised_res.data:
-            final_output += f"\n\n### 🔄 Revised Academic Synthesis\n{revised_res.data['explanation']}"
-            add_trace("Revision", "Study Agent", "Generated expanded conceptual synthesis", {})
-
-    # 6. State Machine: Stage 6 - Final Response & Memory Update
-    add_trace("Final", "AGI Controller", "Orchestrated final response and saved learning state", {
-        "execution_steps": len(trace) + 1,
-        "agent_run_id": agent_run_id
-    })
-
-    # Save summary to student memory
-    save_memory(
-        db=db,
-        key=f"goal_run_{agent_run_id}",
-        value=f"Completed study session on '{query[:80]}' with {len(capabilities)} agents.",
-        memory_type="context",
-        importance=3,
-        user_id=req.user_id
-    )
-
-    # Convert trace to serializable list for DB
-    trace_serializable = [
-        {
-            "step_id": t.step_id,
-            "stage": t.stage,
-            "agent_name": t.agent_name,
-            "action": t.action_description,
-            "details": t.details,
-            "time": t.timestamp
+    def __init__(self):
+        self.specialists = {
+            "orchestrator": "AGI Controller & State Machine Dispatcher",
+            "planner": "Study Planner & Task Scheduler Agent",
+            "study": "Conceptual Study & Socratic Tutor Agent",
+            "coding": "Software Engineering & Code Analysis Agent",
+            "math": "Symbolic & Numerical Mathematics Agent",
+            "research": "Academic Literature & Web Research Agent",
+            "exam": "Exam Question & Quiz Generator Agent",
+            "memory": "Student Long-Term Memory & Context Agent",
+            "critic": "Evaluation, Groundedness & Critic Agent"
         }
-        for t in trace
-    ]
 
-    finish_agent_run(
-        db=db,
-        run_id=agent_run_id,
-        status="SUCCESS",
-        output_result=final_output[:4000],
-        execution_trace_json=json.dumps(trace_serializable),
-        retry_count=retry_count
-    )
+    def list_agents(self) -> List[Dict[str, str]]:
+        return [{"name": name, "description": desc} for name, desc in self.specialists.items()]
 
-    return OrchestratorResult(
-        query=query,
-        intents=capabilities,
-        combined_summary=final_output,
-        plan=plan_steps,
-        results=agent_results,
-        evaluation=critic_eval,
-        execution_trace=trace,
-        subject_id=subject_id,
-        agent_run_id=agent_run_id,
-        status="SUCCESS"
-    )
+    def run(self, db: Session, query: str, extra: Optional[dict] = None) -> OrchestratorResult:
+        """
+        Main AGI Controller execution engine.
+        Executes the structured State Machine with audit logging and full UI trace.
+        """
+        extra = extra or {}
+        subject_id, subject_name = match_subject_in_db(db, query)
+        if extra.get("subject_id"):
+            subject_id = extra["subject_id"]
+
+        capabilities = detect_capabilities(query)
+        all_intents = list(capabilities)
+
+        # 1. State Machine: Stage 1 - Ingestion & Planning
+        plan_steps = [f"Analyze intent and match subject (matched: {subject_name or 'General'})"]
+        for cap in capabilities:
+            plan_steps.append(f"Delegate subtask to {cap.capitalize()} Agent")
+        plan_steps.append("Invoke Evaluation & Critic Agent for consistency and rubric check")
+        plan_steps.append("Update student long-term memory")
+
+        # Create AgentRun record in DB
+        agent_run = create_agent_run(
+            db=db,
+            agent_name="AGI Controller",
+            input_query=query,
+            plan_json=json.dumps(plan_steps)
+        )
+        agent_run_id = agent_run.id
+
+        trace: List[ExecutionTraceStep] = []
+        step_num = 1
+
+        def add_trace(
+            stage: str,
+            agent: str,
+            action: str,
+            details: Dict[str, Any],
+            tool_used: Optional[str] = None,
+            duration_ms: float = 0.0,
+            parent_step_id: Optional[int] = None
+        ):
+            nonlocal step_num
+            trace.append(ExecutionTraceStep(
+                step_id=step_num,
+                stage=stage,
+                agent_name=agent,
+                action_description=action,
+                tool_used=tool_used,
+                duration_ms=duration_ms,
+                parent_step_id=parent_step_id,
+                details=details,
+                timestamp=datetime.now(timezone.utc).strftime("%H:%M:%S")
+            ))
+            step_num += 1
+
+        add_trace("Goal", "AGI Controller", f"Received student goal: '{query[:80]}'", {"intents": capabilities})
+        add_trace("Plan", "AGI Controller", f"Formulated execution plan with {len(capabilities)} specialists", {"plan": plan_steps}, parent_step_id=1)
+
+        # Prepare common request
+        req = AgentRequest(
+            query=query,
+            subject_id=subject_id,
+            unit_number=extra.get("unit_number"),
+            topic_name=extra.get("topic_name"),
+            extra=extra,
+            user_id=extra.get("user_id")
+        )
+
+        # 2. State Machine: Stage 2 - Execute Specialist Agents
+        agent_results: List[AgentResult] = []
+
+        # Inject Memory first if applicable
+        mem_result = run_memory_agent(db, req, agent_run_id=agent_run_id)
+        agent_results.append(mem_result)
+        add_trace("Agent", "Memory Agent", "Retrieved student memory and context", {"total_memories": mem_result.data.get("total_memories")}, parent_step_id=2)
+
+        # Ordered execution of specialists
+        for cap in capabilities:
+            res = None
+            parent_id = step_num
+            if cap == "planner":
+                res = run_planner_agent(db, req, agent_run_id=agent_run_id)
+            elif cap == "study":
+                res = run_study_agent(req, db=db, agent_run_id=agent_run_id)
+            elif cap == "coding":
+                res = run_coding_agent(req, db=db, agent_run_id=agent_run_id)
+            elif cap == "math":
+                res = run_math_agent(req, db=db, agent_run_id=agent_run_id)
+            elif cap == "research":
+                res = run_research_agent(req, db=db, agent_run_id=agent_run_id)
+            elif cap == "exam":
+                res = run_exam_agent(db, req, agent_run_id=agent_run_id)
+
+            if res:
+                agent_results.append(res)
+                # Log any tool executions that occurred
+                for tc in res.tool_calls:
+                    add_trace(
+                        stage="Tool",
+                        agent=res.agent,
+                        action=f"Called tool '{tc.tool_name}' ({tc.status})",
+                        details={"arguments": tc.arguments},
+                        tool_used=tc.tool_name,
+                        duration_ms=tc.execution_time_ms,
+                        parent_step_id=parent_id
+                    )
+                add_trace("Result", res.agent, res.summary, {"ok": res.ok}, parent_step_id=parent_id)
+
+        # 3. State Machine: Stage 3 - Combine Initial Outputs
+        combined_sections = []
+        if subject_name:
+            combined_sections.append(f"**Target Subject:** {subject_name}\n")
+
+        for r in agent_results:
+            if r.agent == "Memory Agent":
+                continue
+            status_icon = "✅" if r.ok else "⚠️"
+            combined_sections.append(f"### {status_icon} {r.agent}\n{r.summary}\n")
+            # Include detailed text if present
+            for key in ("explanation", "response", "solution", "research_summary"):
+                if key in r.data and r.data[key]:
+                    combined_sections.append(str(r.data[key]))
+                    break
+
+        initial_output = "\n\n".join(combined_sections)
+
+        # 4. State Machine: Stage 4 - Critic & Evaluation Check
+        critic_eval = evaluate_output_quality(
+            query=query,
+            combined_response=initial_output,
+            agent_results=agent_results,
+            db=db,
+            agent_run_id=agent_run_id
+        )
+        add_trace("Critic", "Evaluation & Critic Agent", f"Quality Assessment: {int(critic_eval.overall_score * 100)}/100", {
+            "score": critic_eval.overall_score,
+            "retry_required": critic_eval.retry_required,
+            "feedback": critic_eval.feedback
+        })
+
+        # 5. State Machine: Stage 5 - Controlled Retry / Revision Loop
+        final_output = initial_output
+        retry_count = 0
+        if critic_eval.retry_required and retry_count < 1:
+            retry_count = 1
+            add_trace("Revision", "AGI Controller", "Executing targeted revision to address quality gaps", {"notes": critic_eval.revision_notes})
+            # Re-run study agent with emphasis on query completeness
+            revised_res = run_study_agent(req, db=db, agent_run_id=agent_run_id)
+            if revised_res.ok and "explanation" in revised_res.data:
+                final_output += f"\n\n### 🔄 Revised Academic Synthesis\n{revised_res.data['explanation']}"
+                add_trace("Revision", "Study Agent", "Generated expanded conceptual synthesis", {})
+
+        # 6. State Machine: Stage 6 - Final Response & Memory Update
+        add_trace("Final", "AGI Controller", "Orchestrated final response and saved learning state", {
+            "execution_steps": len(trace) + 1,
+            "agent_run_id": agent_run_id
+        })
+
+        # Save summary to student memory
+        save_memory(
+            db=db,
+            key=f"goal_run_{agent_run_id}",
+            value=f"Completed study session on '{query[:80]}' with {len(capabilities)} agents.",
+            memory_type="context",
+            importance=3,
+            user_id=req.user_id
+        )
+
+        # Convert trace to serializable list for DB
+        trace_serializable = [
+            {
+                "step_id": t.step_id,
+                "stage": t.stage,
+                "agent_name": t.agent_name,
+                "action": t.action_description,
+                "tool_used": t.tool_used,
+                "duration_ms": t.duration_ms,
+                "parent_step_id": t.parent_step_id,
+                "details": t.details,
+                "time": t.timestamp
+            }
+            for t in trace
+        ]
+
+        finish_agent_run(
+            db=db,
+            run_id=agent_run_id,
+            status="SUCCESS",
+            output_result=final_output[:4000],
+            execution_trace_json=json.dumps(trace_serializable),
+            retry_count=retry_count
+        )
+
+        return OrchestratorResult(
+            query=query,
+            intents=capabilities,
+            combined_summary=final_output,
+            plan=plan_steps,
+            results=agent_results,
+            evaluation=critic_eval,
+            execution_trace=trace,
+            subject_id=subject_id,
+            agent_run_id=agent_run_id,
+            status="SUCCESS"
+        )
+
+
+# Singleton instance
+_orchestrator_instance: Optional[AgentOrchestrator] = None
+
+
+def get_agent_orchestrator() -> AgentOrchestrator:
+    """Returns the singleton AgentOrchestrator instance."""
+    global _orchestrator_instance
+    if _orchestrator_instance is None:
+        _orchestrator_instance = AgentOrchestrator()
+    return _orchestrator_instance
+
+
+def route_request(db: Session, query: str, extra: Optional[dict] = None) -> OrchestratorResult:
+    """Delegates to AgentOrchestrator.run() preserving full backward compatibility."""
+    return get_agent_orchestrator().run(db=db, query=query, extra=extra)

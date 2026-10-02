@@ -1,0 +1,192 @@
+**************** PAGE 25 ****************
+# Page Key content
+14
+Agents &
+Execution
+Trace
+visual flow, timings
+15 Notifications list + preferences
+16 Profile student details, password
+change
+17 Settings
+theme, provider preference
+(no keys shown),
+notifications, version "AI
+Student Copilot V2.0"
+18 Developer
+Diagnostics
+admin only
+Proactive UX (important): the app should feel
+intelligent, not just menus. The dashboard greets by
+time of day, states available time, flags the
+approaching exam, and recommends 2–4 concrete
+next actions with durations (e.g. "Revise recursion —
+35 min"), each launching directly into the relevant flow.
+Recommendations come from real data (weak topics,
+plan, exam dates) — never hard-coded placeholders.
+
+**************** PAGE 26 ****************
+7A. VISUAL DESIGN DIRECTION
+(the interface must look designed,
+not templated)
+The goal is a distinctive, premium product with its own
+identity — not a default admin-template look.
+Everything below is a starting proposal: follow it unless
+I give different preferences, and record any change in
+DECISIONS.md .
+Concept: "a calm, focused study studio." Quiet
+surfaces so the student's work is the loudest thing on
+screen; one memorable element per page; color that
+carries meaning (subject, mastery, urgency), not
+decoration.
+Color (named tokens; define for light AND dark as
+separate, designed palettes — not an inverted
+copy):
+ink  deep navy #14213D  (text) · canvas  cool
+off-white #F4F6FA  / dark #0E1424  · surface
+white / dark #161D33
+focus  teal #0F8B8D  (primary actions, progress)
+· spark  amber #F2A93B  (streaks, achievements)
+· weak  rose #D64561  (weak topics, overdue) ·
+good  leaf #3FA66B  (mastered, completed)
+One sequential mastery ramp (rose → amber →
+teal) used consistently in every chart, heatmap,
+
+**************** PAGE 27 ****************
+and badge.
+Subject colors: each subject gets its own color,
+chosen by the student, reused across planner,
+charts, materials, and quizzes so the student
+learns the color language.
+Avoid: gradient washes as decoration, a cream-
+and-terracotta look, near-black with a neon
+accent, purple-blue "AI gradient" backgrounds.
+Typography (self-host via @fontsource, no CDN
+dependency): headings Bricolage Grotesque ;
+UI/body Figtree ; code JetBrains Mono . Defined
+type scale (≈1.2 ratio), real weights, tuned letter-
+spacing on large headings, body line-height ≥1.5,
+chat/prose line length ≤75 characters. Do not default
+to Inter/Roboto/system fonts.
+Shape and depth: vary radius by hierarchy (hero
+panels larger, cards medium, inputs small, chips pill)
+instead of one radius everywhere. Use tonal surfaces
+and 1px borders for structure; reserve shadow for
+things that float (menus, dialogs, command palette).
+Layout — avoid the "grid of identical cards":
+┌  sidebar 
+┬───────────────────────────────────
+──────────────┐
+│          │  Good evening, <name>. You have 
+3 h free today.   │
+│          │  ┌  TODAY (hero) 
+
+**************** PAGE 28 ****************
+─────────────────┐  ┌  EXAM ─────┐  │
+│          │  │  (progress ring)  Revise       
+│  │  Python T4 │  │
+│          │  │  recursion · 35 min            
+│  │  7 days    │  │
+│          │  │  [Start study session]         
+│  │  left      │  │
+│          │ 
+└───────────────────────────────┘ 
+└───────────┘  │
+│          │  Plan timeline (wide, main)  │ 
+Weak topics, streak │
+└─────────┴─────────────────────────
+────────────────────────┘
+Dashboard memorable element: the "Today"
+hero with a live progress ring and one clear
+primary action. Everything else is secondary and
+quieter.
+Chat: single centered reading column (~720px),
+minimal chrome. AI answers render as full-width
+prose (not bubbles); the student's messages get a
+subtle tinted bubble. Citations appear as small
+numbered chips that open a sources side panel.
+Agent trace is a collapsible timeline under the
+answer. Composer floats at the bottom with
+attach, stop, and status line.
+Planner: calendar/timeline with drag-to-
+reschedule, tasks colored by subject, completion
+ring per day.
+
+**************** PAGE 29 ****************
+Data viz: direct labels instead of legends where
+possible, restrained gridlines, the shared mastery
+ramp, accessible contrast, tooltips with the "why"
+behind every score. Do not ship default chart-
+library styling.
+Sidebar: icon + label, collapsible, grouped (Learn /
+Practice / Track / Account); mobile uses a bottom
+bar plus a sheet for the full menu.
+Motion: one orchestrated moment on first dashboard
+load (progress ring fills, today's tasks settle in once).
+Otherwise motion only responds to the student's
+action (completing a task, dragging, expanding,
+saving, toast). No fade-and-slide on every section, no
+hover animation on every card. Streaming text
+appears smoothly without layout jump. Honor
+prefers-reduced-motion .
+Copy: sentence case, plain active verbs, buttons say
+what they do ("Start study session", "Save changes")
+and the confirmation uses the same word ("Saved").
+Errors say what happened and how to fix it. Empty
+states invite an action ("Upload your first material to
+start asking questions"). No lorem ipsum, no filler, no
+ALL-CAPS eyebrow labels over every heading, no
+emoji used as icons.
+Components: shadcn/ui  (Radix) is used only as
+accessible unstyled primitives and must be restyled
+to these tokens — never shipped with default
+
+**************** PAGE 30 ****************
+styling. One icon set (Lucide) with consistent stroke
+width. All design tokens live as CSS variables mapped
+into the Tailwind config.
+Quality floor (every page): responsive at 360 / 768 /
+1280 / 1536 px; WCAG AA contrast in both themes;
+visible keyboard focus; skeleton loaders that match
+the real layout; no layout shift on load; touch targets
+≥44px on mobile.
+Process (mandatory in Phase 6, before building
+UI):
+1. Produce a short Design Plan artifact: final tokens,
+type scale, and ASCII/low-fidelity wireframes for
+Dashboard, Chat, and Planner. Wait for my
+approval.
+2. Build the app shell, then Dashboard and Chat.
+3. Design review: with the browser agent, capture
+screenshots of each main page at 3 breakpoints ×
+light/dark. Critique against this section (does it
+look like a generic template? identical cards?
+default styling? inconsistent spacing?), fix issues,
+and include before/after screenshots in the
+Walkthrough.
+4. Repeat the same screenshot review for every
+page added in Phase 7.
+
+**************** PAGE 31 ****************
+8. PERFORMANCE
+Async I/O in routes and provider calls; pagination on all
+list endpoints; DB indexes verified with query plans for
+hot paths; response caching where safe (e.g.
+dashboard aggregates, provider health);
+embedding/result caching; lazy-loaded routes and
+code-splitting on the frontend; virtualized long lists;
+debounced search; background document
+processing. Add a short before/after note in docs/  for
+measurable improvements.
+9. ERROR HANDLING (every layer)
+Frontend: error boundaries, toasts, retry buttons;
+"AI service is temporarily busy. Retrying…".
+Backend: structured errors with request IDs; no
+raw traces for normal users.
+AI: retry temporary failures; provider fallback;
+never hide auth/config errors.
+RAG: clear message when no relevant material
+exists.
+Developer diagnostics may show detailed (still
+secret-free) errors to admins.
+

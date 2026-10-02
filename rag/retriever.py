@@ -25,6 +25,7 @@ class RetrievalResult:
         truncated: True if some chunks were dropped due to max_context_chars.
         subject_id: Filter used (or None).
         unit_number: Filter used (or None).
+        user_id: User scoping filter used (or None).
     """
     chunks: List[Dict[str, Any]] = field(default_factory=list)
     query_embedding: List[float] = field(default_factory=list)
@@ -32,6 +33,7 @@ class RetrievalResult:
     truncated: bool = False
     subject_id: Optional[int] = None
     unit_number: Optional[int] = None
+    user_id: Optional[int] = None
 
 
 def retrieve_chunks(
@@ -39,6 +41,7 @@ def retrieve_chunks(
     top_k: int = settings.RAG_TOP_K,
     subject_id: Optional[int] = None,
     unit_number: Optional[int] = None,
+    user_id: Optional[int] = None,
     max_context_chars: int = settings.MAX_CONTEXT_CHARS,
 ) -> RetrievalResult:
     """
@@ -46,7 +49,7 @@ def retrieve_chunks(
 
     Steps:
     1. Embed the query using the configured embedding generator.
-    2. Search the vector store with optional subject/unit filters.
+    2. Search the vector store with optional subject, unit, and user_id filters.
     3. Trim results to stay within max_context_chars.
     4. Return a RetrievalResult with ranked chunks and metadata.
 
@@ -55,6 +58,7 @@ def retrieve_chunks(
         top_k: Maximum number of chunks to retrieve.
         subject_id: If set, restrict search to this subject.
         unit_number: If set, further restrict to this unit (requires subject_id).
+        user_id: If set, strictly restrict search to this user's indexed chunks.
         max_context_chars: Hard cap on total context characters sent to the LLM.
 
     Returns:
@@ -62,7 +66,7 @@ def retrieve_chunks(
     """
     if not query or not query.strip():
         logger.warning("retrieve_chunks called with empty query.")
-        return RetrievalResult(subject_id=subject_id, unit_number=unit_number)
+        return RetrievalResult(subject_id=subject_id, unit_number=unit_number, user_id=user_id)
 
     # 1. Embed query
     embedder = get_embedding_generator()
@@ -76,10 +80,11 @@ def retrieve_chunks(
         top_k=top_k,
         filter_subject_id=subject_id,
         filter_unit=unit_number,
+        filter_user_id=user_id,
     )
     logger.info(
         f"Vector search returned {len(raw_results)} results "
-        f"(subject_id={subject_id}, unit={unit_number}, top_k={top_k})"
+        f"(subject_id={subject_id}, unit={unit_number}, user_id={user_id}, top_k={top_k})"
     )
 
     if not raw_results:
@@ -87,6 +92,7 @@ def retrieve_chunks(
             query_embedding=query_embedding,
             subject_id=subject_id,
             unit_number=unit_number,
+            user_id=user_id,
         )
 
     # 3. Cap total context to max_context_chars
@@ -117,6 +123,7 @@ def retrieve_chunks(
         truncated=truncated,
         subject_id=subject_id,
         unit_number=unit_number,
+        user_id=user_id,
     )
 
 
@@ -134,9 +141,44 @@ def build_context_block(chunks: List[Dict[str, Any]]) -> str:
         doc_id = chunk.get("document_id", "?")
         page = chunk.get("page_number", "?")
         topic = chunk.get("topic_name") or "General"
+        v_id = chunk.get("vector_id", f"doc_{doc_id}_chk_{chunk.get('chunk_index', i)}")
         content = chunk.get("content", "").strip()
         lines.append(
-            f"[Source {i} | Document ID: {doc_id} | Page {page} | Topic: {topic}]\n{content}"
+            f"[Source {i} | Document ID: {doc_id} | Chunk: {v_id} | Page {page} | Topic: {topic}]\n{content}"
         )
 
     return "\n\n---\n\n".join(lines)
+
+
+def validate_citations(
+    chunks: List[Dict[str, Any]],
+    citation_references: Optional[List[str]] = None
+) -> List[Dict[str, Any]]:
+    """
+    Validates and formats retrieved chunk citations.
+    Each citation item includes vector_id, document_id, page_number,
+    topic_name, score, and verified flag.
+    """
+    validated = []
+    for i, ch in enumerate(chunks, 1):
+        v_id = ch.get("vector_id") or f"doc_{ch.get('document_id')}_chk_{ch.get('chunk_index', i)}"
+        source_label = f"Source {i}"
+        is_cited = True
+        if citation_references is not None:
+            is_cited = any(ref in (source_label, v_id, str(ch.get("document_id"))) for ref in citation_references)
+
+        validated.append({
+            "source_id": source_label,
+            "vector_id": v_id,
+            "document_id": ch.get("document_id"),
+            "page_number": ch.get("page_number", 1),
+            "chunk_index": ch.get("chunk_index", 0),
+            "topic_name": ch.get("topic_name") or "General",
+            "score": ch.get("score", 0.0),
+            "user_id": ch.get("user_id"),
+            "char_count": ch.get("char_count", len(ch.get("content", ""))),
+            "excerpt": ch.get("content", "")[:250].strip(),
+            "is_valid": True,
+            "is_cited": is_cited
+        })
+    return validated

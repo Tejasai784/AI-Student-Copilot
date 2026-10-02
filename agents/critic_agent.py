@@ -55,15 +55,24 @@ def evaluate_output_quality(
         if not r.ok:
             factual -= 0.15
 
-    # 4. Overall weighted score
-    overall = round(0.35 * factual + 0.35 * completeness + 0.30 * relevance, 2)
+    # 4. Groundedness check (evidence backing and citation presence)
+    has_citations = any(len(r.citations) > 0 for r in agent_results)
+    has_study_material = any("Source" in resp or "Page" in resp or len(r.citations) > 0 for r in agent_results)
+    if "cite" in q_low or "source" in q_low or "prove" in q_low or "evidence" in q_low:
+        groundedness = 0.95 if (has_citations or has_study_material) else 0.50
+    else:
+        groundedness = 0.95 if has_study_material else 0.85
+
+    # 5. Overall weighted score
+    overall = round(0.30 * factual + 0.30 * completeness + 0.20 * relevance + 0.20 * groundedness, 2)
     overall = max(0.0, min(1.0, overall))
 
     retry_required = (overall < 0.70) or (len(resp.strip()) < 30)
     feedback_parts = [
         f"Factual consistency: {int(factual*100)}%",
         f"Completeness: {int(completeness*100)}%",
-        f"Relevance: {int(relevance*100)}%"
+        f"Relevance: {int(relevance*100)}%",
+        f"Groundedness: {int(groundedness*100)}%"
     ]
     if retry_required:
         feedback_parts.append("Quality score below threshold (<70%). Revision requested.")
@@ -96,6 +105,7 @@ def evaluate_output_quality(
         relevance=relevance,
         overall_score=overall,
         feedback=feedback,
+        groundedness=groundedness,
         retry_required=retry_required,
         revision_notes=revision_notes
     )

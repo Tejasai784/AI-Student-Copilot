@@ -79,9 +79,13 @@ def _safe_eval_node(node: ast.AST) -> float:
         raise ValueError(f"Unsupported syntax in expression: {type(node).__name__}")
 
 
+from tools.schemas import CalculatorInput
+
+
 class CalculatorTool(BaseTool):
     name = "calculator"
     description = "Safely evaluates mathematical expressions (arithmetic, powers, trigonometry, logarithms, sqrt)."
+    args_model = CalculatorInput
     parameters_schema = {
         "type": "object",
         "properties": {

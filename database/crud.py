@@ -303,7 +303,7 @@ def get_dashboard_summary(db: Session) -> Dict[str, Any]:
     )
 
     total_materials = db.query(func.count(Document.id)).filter(
-        Document.status == "COMPLETED"
+        Document.status.in_(["COMPLETED", "READY", "Ready", "Completed"])
     ).scalar() or 0
 
     from database.models import ExamAttempt, UpcomingExam, StudyTask
@@ -499,6 +499,25 @@ def add_message(
 def get_messages(db: Session, conversation_id: int) -> List[Message]:
     return db.query(Message).filter(Message.conversation_id == conversation_id).order_by(Message.created_at.asc()).all()
 
+def update_conversation_title(db: Session, conv_id: int, title: str) -> Optional[Conversation]:
+    conv = get_conversation_by_id(db, conv_id)
+    if not conv:
+        return None
+    conv.title = title
+    from database.models import utc_now
+    conv.updated_at = utc_now()
+    db.flush()
+    return conv
+
+def delete_conversation(db: Session, conv_id: int) -> bool:
+    conv = get_conversation_by_id(db, conv_id)
+    if not conv:
+        return False
+    db.query(Message).filter(Message.conversation_id == conv_id).delete()
+    db.delete(conv)
+    db.flush()
+    return True
+
 
 # ============================================================================
 # Memory CRUD
@@ -539,13 +558,20 @@ def save_memory(
     db.flush()
     return mem
 
-def get_memories(db: Session, memory_type: Optional[str] = None, exclude_sensitive: bool = False) -> List[Memory]:
+def get_memories(
+    db: Session,
+    memory_type: Optional[str] = None,
+    exclude_sensitive: bool = False,
+    user_id: Optional[int] = None
+) -> List[Memory]:
     query = db.query(Memory)
     if memory_type:
         query = query.filter(Memory.memory_type == memory_type)
     if exclude_sensitive:
         query = query.filter(Memory.is_sensitive == False)
-    return query.order_by(Memory.importance.asc(), Memory.created_at.desc()).all()
+    if user_id:
+        query = query.filter((Memory.user_id == user_id) | (Memory.user_id == None) | (Memory.user_id == 1))
+    return query.order_by(Memory.importance.desc(), Memory.created_at.desc()).all()
 
 def delete_memory(db: Session, memory_id: int) -> bool:
     mem = db.query(Memory).filter(Memory.id == memory_id).first()

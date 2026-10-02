@@ -11,9 +11,13 @@ from database.database import get_db
 from database.crud import get_subjects, get_subject_by_id
 
 
+from tools.schemas import QuizGeneratorInput
+
+
 class QuizGeneratorTool(BaseTool):
     name = "quiz_generator"
     description = "Generates practice questions, MCQs, and coding challenges for exam preparation with scoring rubrics."
+    args_model = QuizGeneratorInput
     parameters_schema = {
         "type": "object",
         "properties": {
@@ -34,8 +38,13 @@ class QuizGeneratorTool(BaseTool):
         "required": ["topic"]
     }
 
-    def execute(self, topic: str, num_questions: int = 3, difficulty: str = "medium", **kwargs) -> Dict[str, Any]:
-        t_low = topic.lower()
+    def execute(self, topic: str = "General", num_questions: int = 3, difficulty: str = "medium", **kwargs) -> Dict[str, Any]:
+        if "count" in kwargs and kwargs["count"]:
+            try:
+                num_questions = int(kwargs["count"])
+            except (ValueError, TypeError):
+                pass
+        t_low = (topic or "General").lower()
         questions = []
 
         if "python" in t_low or "code" in t_low or "variable" in t_low or "function" in t_low or "loop" in t_low:
