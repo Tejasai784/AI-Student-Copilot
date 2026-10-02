@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Production build artifacts
+dist/
+build/
+
+# Local cache & build info
+.vite/
+*.local
+*.tsbuildinfo
+
+# Editor & OS
+.DS_Store
+Thumbs.db
